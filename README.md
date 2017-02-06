@@ -1,10 +1,11 @@
-How-To:
 Pre-requisites:
+
 1. Java 8
 
 2. Maven configured correctly to ensure dependencies can be downloaded
 
 Run:
+
 1. Once code has been downloaded, go to the project root directory: webcrawler
 
 2. The project uses maven as its build tool, so once in the webcrawler directory, run: mvn install

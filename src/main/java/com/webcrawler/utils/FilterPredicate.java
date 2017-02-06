@@ -1,6 +1,9 @@
 package com.webcrawler.utils;
 
+import java.net.URL;
 import java.util.function.Predicate;
+
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Simple filter to filter links to navigate.
@@ -11,21 +14,43 @@ import java.util.function.Predicate;
  */
 public class FilterPredicate implements Predicate<String> {
 
-	private final String pattern;
+	private final String domainPattern;
 	
 	
 	public FilterPredicate(String domain){
 		if(domain == null){
 			throw new IllegalArgumentException("Domain cannot be null");
 		}
-		pattern = ".*" + domain + ".*\\.htm[l?]";
+		domainPattern = ".*" + domain + ".*";
 
 	}
 	
 	@Override
 	public boolean test(String t) {
 	
-		return (t == null ? false : t.matches(pattern));
+		if(null == t){
+			return false;
+		}
+		boolean matches = false;
+		try{
+			if(checkDomain(t)) {
+				matches = true;
+				URL site = new URL(t);
+				String path = StringUtils.defaultString(site.getPath());
+				if((path.contains("#")) ||
+				(path.contains(".") && (! (path.endsWith(".htm") || path.endsWith(".html"))))) {
+					matches = false;
+				}
+			
+			}
+		}catch(Exception e){
+			e.printStackTrace();
+		}
+		return matches;
 	}
 
+	public boolean checkDomain(String t){
+		return t.matches(domainPattern);
+	}
+	
 }

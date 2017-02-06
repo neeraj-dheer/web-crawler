@@ -1,19 +1,21 @@
 package com.webcrawler.navigate;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import com.webcrawler.html.HtmlParser;
+import com.webcrawler.html.SimpleHtmlParser;
 import com.webcrawler.utils.FilterPredicate;
 
 /**
@@ -28,32 +30,35 @@ public class WebCrawler {
 	
 	private Map<String, List<String>> siteMap = new ConcurrentHashMap<>();
 	private final int MAX_DOWNLOADERS = 1;
-	private final long VISIT_MAX = 10;
+	private long maxVisits = 1000;
 	private Predicate<String> filterLinksPredicate; 
 	private AtomicLong totalVisited = new AtomicLong();
-	private BlockingQueue<String> toVisit = new ArrayBlockingQueue<>(100);
-	//private ExecutorService executor = Executors.newFixedThreadPool(MAX_DOWNLOADERS);
+	private BlockingQueue<String> toVisit = new LinkedBlockingQueue<>();
+
 	private ExecutorService executor = Executors.newSingleThreadExecutor();
-	private HtmlParser htmlParser = new HtmlParser();
-	private final String domain;
+	private HtmlParser htmlParser = new SimpleHtmlParser();
+	private String domain;
 	
-	/**
-	 * 
-	 * @param domain currently domain passed as constructor argument
-	 */
-	public WebCrawler(String domain){
-		this.domain = domain;//save domain - just in case
-		filterLinksPredicate = new FilterPredicate(domain);
-	}
-	
+
 	/**
 	 * within the web crawler, src would be the url of the page to crawl.
 	 * @param src
 	 */
-	public Map<String, List<String>> crawl(String src){
-		if(!filterLinksPredicate.test(src)){
-			throw new IllegalArgumentException(String.format("URL %s does not belong to configured domain", src));
+	public Map<String, List<String>> crawl(String src, long maxVisits){
+
+		try{
+			if(maxVisits > 0){
+				this.maxVisits = maxVisits;
+			}
+			URL start = new URL(src);
+			domain = start.getHost();
+			filterLinksPredicate = new FilterPredicate(domain);
+		}catch(MalformedURLException e){
+			e.printStackTrace();
+			throw new IllegalArgumentException("Malformed url provided: " + src);
 		}
+		
+		
 
 		visit(src);
 		return siteMap;
@@ -95,11 +100,11 @@ public class WebCrawler {
 	 * @return true - if further crawling is required
 	 */
 	private boolean crawlRequired() {
-		boolean reqd = ((totalVisited.get() < VISIT_MAX) && !toVisit.isEmpty());
+		boolean reqd = ((totalVisited.get() < maxVisits) && !toVisit.isEmpty());
 		if(!reqd) {
 			executor.shutdown();
 		}
-		System.out.println("crawl reqs:" + reqd);
+		System.out.println("crawl required:" + reqd);
 		
 		return reqd;
 	}
@@ -134,31 +139,31 @@ public class WebCrawler {
 		}
 		
 		public void run(){
-			System.out.println("Starting thread");
+			System.out.println("Starting crawler thread:" + Thread.currentThread().getName());
 			while(shouldRun){
-			try{
-				String url = queue.take();
-				System.out.println("got url:[" + url + "]");
-				List<String> links = htmlParser.getAHrefs(url);
-				System.out.println("got links:" + links);
-				siteMap.put(url, links);
-				Set<String> distinctLinks = links.stream()
-												.filter(filterLinksPredicate)
-												.collect(Collectors.toSet());
-				System.out.println("set has:" + distinctLinks);
-				queue.addAll(distinctLinks);
-				totalVisited.addAndGet(distinctLinks.size());
-				checkShouldRun();
-			}catch(InterruptedException ie){
-				//being interrupted, so probably want to stop
-				shouldRun = false;
-				Thread.currentThread().interrupt();
-			}catch(Exception e){
-				//some other exception = possibly related to the url like:
-				//1. url doesnt exist
-				//2. html parsing exception etc.
-				//in this case, just log and move on to the next url
-				e.printStackTrace();
+				try{
+					String url = queue.take();
+					System.out.println("got url:[" + url + "]");
+					List<String> links = htmlParser.getAHrefs(url);
+					System.out.println("got links:" + links);
+					siteMap.put(url, links);
+					Set<String> distinctLinks = links.stream()
+													.filter(filterLinksPredicate)
+													.collect(Collectors.toSet());
+					System.out.println("traversable set has:" + distinctLinks);
+					queue.addAll(distinctLinks);
+					totalVisited.addAndGet(distinctLinks.size());
+					checkShouldRun();
+				}catch(InterruptedException ie){
+					//being interrupted, so probably want to stop
+					shouldRun = false;
+					Thread.currentThread().interrupt();
+				}catch(Exception e){
+					//some other exception = possibly related to the url like:
+					//1. url doesnt exist
+					//2. html parsing exception etc.
+					//in this case, just log and move on to the next url
+					e.printStackTrace();
 				}
 			}
 		}

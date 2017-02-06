@@ -16,6 +16,12 @@ public class TestFilterPredicate {
 	}
 	
 	@Test
+	public void testFilteredIn(){
+		boolean result = predicate.test("http://mydomain.com/about-us");
+		assertTrue(result);
+	}
+
+	@Test
 	public void testJpgFilteredOut(){
 		boolean result = predicate.test("http://mydomain.com/test.jpg");
 		assertFalse(result);

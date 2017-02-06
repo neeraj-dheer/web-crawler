@@ -24,24 +24,37 @@ import com.webcrawler.utils.FilterPredicate;
  * 1. max specified links are traversed - specified by VISIT_MAX
  * 2. all links have been traversed
  */
-
 public class WebCrawler {
 	
 	private Map<String, List<String>> siteMap = new ConcurrentHashMap<>();
 	private final int MAX_DOWNLOADERS = 1;
 	private final long VISIT_MAX = 10;
-	private Predicate<String> filterLinksPredicate = new FilterPredicate();
+	private Predicate<String> filterLinksPredicate; 
 	private AtomicLong totalVisited = new AtomicLong();
 	private BlockingQueue<String> toVisit = new ArrayBlockingQueue<>(100);
-
+	//private ExecutorService executor = Executors.newFixedThreadPool(MAX_DOWNLOADERS);
 	private ExecutorService executor = Executors.newSingleThreadExecutor();
 	private HtmlParser htmlParser = new HtmlParser();
+	private final String domain;
+	
+	/**
+	 * 
+	 * @param domain currently domain passed as constructor argument
+	 */
+	public WebCrawler(String domain){
+		this.domain = domain;//save domain - just in case
+		filterLinksPredicate = new FilterPredicate(domain);
+	}
 	
 	/**
 	 * within the web crawler, src would be the url of the page to crawl.
 	 * @param src
 	 */
 	public Map<String, List<String>> crawl(String src){
+		if(!filterLinksPredicate.test(src)){
+			throw new IllegalArgumentException(String.format("URL %s does not belong to configured domain", src));
+		}
+
 		visit(src);
 		return siteMap;
 
@@ -63,7 +76,10 @@ public class WebCrawler {
 		}
 		
 		try {
-			executor.awaitTermination(1, TimeUnit.DAYS);
+			boolean term = executor.awaitTermination(1, TimeUnit.DAYS); // shouldnt come to await for so long, but adjust to provide for current sites to complete
+			if(!term){
+				executor.shutdownNow();
+			}
 		} catch (InterruptedException e) {
 			//main executor interrupted - stop and get out with whatever we have
 			e.printStackTrace();
@@ -78,7 +94,6 @@ public class WebCrawler {
 	 * all threads downloading sites and crawling are expected to check with thie method whether they should continue to crawl or stop
 	 * @return true - if further crawling is required
 	 */
-
 	private boolean crawlRequired() {
 		boolean reqd = ((totalVisited.get() < VISIT_MAX) && !toVisit.isEmpty());
 		if(!reqd) {
@@ -104,7 +119,6 @@ public class WebCrawler {
 	public void setFilterLinksPredicate(Predicate<String> filterLinksPredicate) {
 		this.filterLinksPredicate = filterLinksPredicate;
 	}
-
 
 	/**
 	 * runnable download a site and then add the newly found links from that site to the blocking queue

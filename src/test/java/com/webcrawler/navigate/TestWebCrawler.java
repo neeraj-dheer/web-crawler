@@ -5,7 +5,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -19,9 +18,10 @@ import com.webcrawler.utils.FilterPredicate;
 
 public class TestWebCrawler {
 	
-	WebCrawler crawl = new WebCrawler();
+	WebCrawler crawl = new WebCrawler("mydomain.com");
 	
 	@Test
+	@SuppressWarnings("unchecked")
 	public void testOneCrawl(){
 		HtmlParser parser = mock(HtmlParser.class);
 		
@@ -41,9 +41,10 @@ public class TestWebCrawler {
 	}
 
 	@Test
+	@SuppressWarnings("unchecked")
 	public void testDuplicateLink(){
 		HtmlParser parser = mock(HtmlParser.class);
-
+		
 		when(parser.getAHrefs(any(String.class))).thenReturn(Arrays.asList("next.url", "one.more", "next.url"))
 		.thenReturn(Collections.EMPTY_LIST).thenReturn(Collections.EMPTY_LIST);
 		
